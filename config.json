@@ -1,0 +1,7 @@
+{
+    "inputSize" : 120,
+    "imgSavePath" : "D:/Documents/Shoestring/Saves/",
+    "ingestScript" : "D:/Documents/Shoestring/ml_stuff.py",
+    "serverHostname" : "127.0.0.1",
+    "port" : 8080
+}
