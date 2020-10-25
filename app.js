@@ -42,9 +42,10 @@ const hostname = CONFIG.serverHostname;
 const port = CONFIG.port;
 
 // Struct for storing output
-function Output(timestamp, pass, ok, ls, rs, lhla, rhla) {
+function Output(timestamp, pass, img, ok, ls, rs, lhla, rhla) {
     this.timestamp = timestamp,
-    this.pass = pass;
+        this.pass = pass;
+    this.img = img
     this.ok = ok;
     this.ls = ls;
     this.rs = rs;
@@ -59,38 +60,43 @@ var outputs = [];
 const server = http.createServer(function (req, res) {
     if (req.url == '/fileupload') // When /fileupload is requested
     {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+
         // Get and format date/time
         var timestamp = new Date().toISOString().replace(/:/g, '-').replace(/Z/gi, '');
 
         // Create a new form
         var form = new formidable.IncomingForm();
         form.parse(req, function (err, fields, files) {
-            // Get temp location and location to save to
-            var oldpath = files.filetoupload.path;
-            var newpath = savepath + timestamp + '.png';
+            if (files.filetoupload.path) 
+            {
+                // Get temp location and location to save to
+                var oldpath = files.filetoupload.path;
+                var newpath = savepath + timestamp + '.png';
 
-            // Resize image and save to correct path
-            sharp(oldpath)
-                .flatten()
-                .resize(sizeX, sizeY)
-                .toFormat('png')
-                .toFile(newpath, function (err) {
-                    if (err) throw err;
-                    // Success message
-                    console.log('Image saved to ' + newpath);
-                    res.write('Image successfully uploaded as ' + newpath);
+                // Resize image and save to correct path
+                sharp(oldpath)
+                    .flatten()
+                    .resize(sizeX, sizeY)
+                    .toFormat('png')
+                    .toFile(newpath, function (err) {
+                        if (err) throw err;
+                        // Success message
+                        console.log('Image saved to ' + newpath);
+                        res.write('Image successfully uploaded as ' + newpath);
 
-                    // Run image through ML program
-                    runML(newpath, timestamp);
-
-                    res.write('<a href="/view" >View failures</a>');
-                    res.write('<a href="/" >Back</a>');
-
-                    res.end();
-                });
+                        // Run image through ML program
+                        runML(newpath, timestamp);
+                    });
+            }
         });
-    } else if (req.url == '/view')
-    {
+
+        
+        res.write('<a href="/view" >View failures</a>');
+        res.write('<a href="/">Back</a>');
+
+        res.end();
+    } else if (req.url == '/view') {
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.write('Fails:');
 
@@ -101,22 +107,30 @@ const server = http.createServer(function (req, res) {
         res.write('        <th>Image</th>              ');
         res.write('        <th>Likely faults</th>      ');
         res.write('    <tr>                            ');
-        // Display list of failed items
-        fails.forEach(function(test)
-        {
-            // Add row to table
-            res.write('<tr>                            ');
-            res.write('<td>' + test.timestamp + '</td> ');
-            res.write('<td><canvas id="' + test.timestamp + '" width="' + inputX + '" height="' + inputY + '"</canvas></td>');
-            res.write('<td> LIKELY FAULTS </td> ');
-            res.write('</tr>                           ');
-        })
-        res.write('</table>                            ');
-        
-        res.write('<a href="/" >Back</a>');
 
-    } else 
-    {
+        // Display list of failed items
+        for (var i = 0, len = outputs.length; i < len; i++) {
+            let test = outputs[i];
+
+            // Find what's wrong with the thing and overlay image using sharp
+
+
+            if (test.pass == false) {
+                console.log('Displaying ' + test.timestamp);
+                // Add row to table
+                res.write('<tr>                            ');
+                res.write('<td>' + test.timestamp + '</td> ');
+                res.write('<td><img src="file://' + test.img + '"></img></td>');
+                res.write('<td> LIKELY FAULTS... </td> ');
+                res.write('</tr>                           ');
+            }
+        }
+        res.write('</table>                            ');
+        res.write('<a href="/">Back</a>');
+
+        res.end();
+
+    } else {
         // Main page to display
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.write('<form action="fileupload" method="post" enctype="multipart/form-data">');
@@ -132,13 +146,11 @@ server.listen(port, hostname, () => {
     console.log(`Server running at http://${hostname}:${port}/`);
 });
 
-function runML(imgpath, timestamp) 
-{
+function runML(imgpath, timestamp) {
     // Construct command
     var command = CONFIG.ingestScriptDrive + ' && cd ' + mldir + ' && python ' + mlname + ' ' + imgpath;
     console.log(command);
 
-    var output = '';
     // Execute ML processing, record output
     const { exec } = require('child_process');
     exec(command, (err, stdout, stderr) => {
@@ -148,13 +160,16 @@ function runML(imgpath, timestamp)
         }
 
         console.log('LIVE: ' + stdout);
-        var mlout = stdout.match(/(N?OK),(\d\.\d{​​​​​​​5}​​​​​​​e[\+-]\d\d),(\d\.\d{​​​​​​​5}​​​​​​​e[\+-]\d\d),(\d\.\d{​​​​​​​5}​​​​​​​e[\+-]\d\d),(\d\.\d{​​​​​​​5}​​​​​​​e[\+-]\d\d),(\d\.\d{​​​​​​​5}​​​​​​​e[\+-]\d\d)/g);
-        console.log('REGEX: ' + mlout);
-        
-        outputs += new Output(timestamp, mlout[0], mlout[1], mlout[2], mlout[3], mlout[4], mlout[5]);
+        var mlout = stdout.split(',');
+        console.log('Extracted: ' + mlout);
 
-        // Go to viewer
-        res.redirect('/view');
+        // Determine whether pass or fail
+        var pass;
+        if (mlout[0] == 'NOK') { pass = false } else { pass = true; }
+
+        // Add output to list
+        var out = new Output(timestamp, pass, imgpath, mlout[1], mlout[2], mlout[3], mlout[4], mlout[5])
+        outputs.push(out);
     });
 }
 
