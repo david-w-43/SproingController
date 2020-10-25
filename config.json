@@ -1,7 +1,10 @@
 {
-    "inputSize" : 120,
+    "inputX" : 1600,
+    "inputY" : 1200,
     "imgSavePath" : "D:/Documents/Shoestring/Saves/",
-    "ingestScript" : "D:/Documents/Shoestring/ml_stuff.py",
+    "ingestScriptDrive" : "D:",
+    "ingestScriptDir" : "D:/Documents/GitHub/sproing",
+    "ingestScriptName" : "predict_springs.py",
     "serverHostname" : "127.0.0.1",
     "port" : 8080
 }
