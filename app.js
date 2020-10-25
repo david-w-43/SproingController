@@ -46,11 +46,11 @@ function Output(timestamp, pass, img, ok, ls, rs, lhla, rhla) {
     this.timestamp = timestamp,
         this.pass = pass;
     this.img = img
-    this.ok = ok;
-    this.ls = ls;
-    this.rs = rs;
-    this.lhla = lhla;
-    this.rhla = rhla;
+    this.ok = 1 - Number(ok);
+    this.ls = 1 - Number(ls);
+    this.rs = 1 - Number(rs);
+    this.lhla = 1 - Number(lhla);
+    this.rhla = 1 - Number(rhla);
 }
 
 // Array for storing failed inputs
@@ -104,6 +104,7 @@ const server = http.createServer(function (req, res) {
         res.write('<table style="width:100%">          ');
         res.write('    <tr>                            ');
         res.write('        <th>Timestamp</th>          ');
+        res.write('        <th>Confidence</th>         ');
         res.write('        <th>Image</th>              ');
         res.write('        <th>Likely faults</th>      ');
         res.write('    <tr>                            ');
@@ -120,6 +121,7 @@ const server = http.createServer(function (req, res) {
                 // Add row to table
                 res.write('<tr>                            ');
                 res.write('<td>' + test.timestamp + '</td> ');
+                res.write('<td>' + (100 * test.ok).toFixed(3) + '%</td> ');
                 res.write('<td><img src="file://' + test.img + '"></img></td>');
                 res.write('<td> LIKELY FAULTS... </td> ');
                 res.write('</tr>                           ');
